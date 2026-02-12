@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: collaborative-workspace-backend
+    runtime: node
+    rootDir: .
+    buildCommand: npm install && npm run build:backend
+    startCommand: npm --workspace @workspace/backend run start
+    plan: free
+    envVars:
+      - key: FRONTEND_ORIGIN
+        value: https://collaborative-workspace-frontend.onrender.com
+      - key: REDIS_URL
+        sync: false
+
+  - type: web
+    name: collaborative-workspace-frontend
+    runtime: static
+    rootDir: .
+    buildCommand: npm install && npm run build:frontend
+    staticPublishPath: apps/frontend/dist
+    envVars:
+      - key: VITE_BACKEND_URL
+        value: https://collaborative-workspace-backend.onrender.com

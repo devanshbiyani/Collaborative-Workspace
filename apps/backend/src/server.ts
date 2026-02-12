@@ -14,8 +14,29 @@ const PORT = Number(process.env.PORT ?? 4000);
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN ?? "http://localhost:5173";
 const REDIS_URL = process.env.REDIS_URL;
 
+const allowedOrigins = FRONTEND_ORIGIN.split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const isOriginAllowed = (origin: string | undefined) => {
+  if (!origin) return true;
+  if (allowedOrigins.includes("*")) return true;
+  return allowedOrigins.includes(origin);
+};
+
 const app = express();
-app.use(cors({ origin: FRONTEND_ORIGIN }));
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (isOriginAllowed(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error("Not allowed by CORS"));
+    },
+  }),
+);
 app.use(express.json());
 
 app.get("/health", (_req, res) => {
@@ -30,7 +51,14 @@ app.get("/documents/:id", (req, res) => {
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: FRONTEND_ORIGIN,
+    origin(origin, callback) {
+      if (isOriginAllowed(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error("Not allowed by CORS"));
+    },
     methods: ["GET", "POST"],
   },
 });
