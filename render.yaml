@@ -1,0 +1,44 @@
+services:
+  # 1. The Backend (Node/Express)
+  - type: web
+    name: workspace-backend
+    runtime: node
+    plan: free # Change to 'starter' ($7/mo) to prevent sleeping
+    rootDir: apps/backend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: FRONTEND_ORIGIN
+        value: "*" # Update this to your real frontend URL after first deploy
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: workspace-redis
+          property: connectionString
+
+  # 2. The Frontend (React/Vite)
+  - type: static
+    name: workspace-frontend
+    runtime: static
+    rootDir: apps/frontend
+    buildFilter:
+      paths:
+        - apps/frontend/**
+    buildCommand: npm install && npm run build
+    publishDir: dist
+    envVars:
+      - key: VITE_BACKEND_URL
+        fromService:
+          type: web
+          name: workspace-backend
+          property: url
+
+  # 3. Redis (The "Memory")
+  - type: redis
+    name: workspace-redis
+    region: singapore # Choose a region close to you (e.g., oregon, frankfurt)
+    plan: free # Free tier is ephemeral (data lost on restart). Upgrade for persistence.
+    maxMemoryPolicy: allkeys-lru
+    ipAllowList: [] # Only internal services can connect
