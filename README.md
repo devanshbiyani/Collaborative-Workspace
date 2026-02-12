@@ -45,3 +45,52 @@ Set `REDIS_URL` to broadcast operations between multiple backend instances.
 - Persist documents + operation logs in PostgreSQL or MongoDB.
 - Replace naive text replacement with proper CRDT or OT transformations.
 - Add authentication, permissions, and presence/cursor sync.
+
+## Host this project online (Render)
+
+This repo already includes a `render.yaml` blueprint, so you can deploy both the backend and frontend in one flow.
+
+### 1) Push this repo to GitHub
+
+Render deploys from a Git provider. Make sure your latest code is in a GitHub repo.
+
+### 2) Create a new Blueprint in Render
+
+1. Go to Render Dashboard → **New** → **Blueprint**.
+2. Connect your GitHub repository.
+3. Render will detect `render.yaml` and propose 3 services:
+   - `workspace-backend` (Node web service)
+   - `workspace-frontend` (static site)
+   - `workspace-redis` (Redis)
+4. Click **Apply** to create all services.
+
+### 3) Set production environment values
+
+`render.yaml` already wires the important values:
+
+- `VITE_BACKEND_URL` is taken from backend service URL.
+- `REDIS_URL` is taken from the Redis service connection string.
+
+After first deploy, set these in the backend service environment settings:
+
+- `NODE_ENV=production`
+- `FRONTEND_ORIGIN=https://<your-frontend-domain>`
+
+> Tip: Keep `FRONTEND_ORIGIN` strict (your actual frontend URL) instead of `*` in production.
+
+### 4) Redeploy backend and frontend
+
+Trigger a manual deploy (or push a new commit) so both services rebuild with your final environment values.
+
+### 5) Open your hosted app
+
+- Frontend URL: shown in `workspace-frontend`
+- Backend URL: shown in `workspace-backend`
+
+If the editor loads and socket status says connected, your deployment is live.
+
+## Other hosting options
+
+- **Railway**: deploy backend + Redis together, and host frontend on Vercel/Netlify.
+- **Fly.io**: deploy backend as a container and use Upstash Redis.
+- **Single VM (Docker Compose)**: lowest cost if you are comfortable managing infra.
