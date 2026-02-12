@@ -11,6 +11,8 @@ A starter monorepo for building a real-time collaborative workspace using:
 - `apps/frontend` – React editor client
 - `apps/backend` – Express + Socket.io collaboration server
 - `docs/architecture.md` – scaling + CRDT/OT roadmap
+- `docs/deployment.md` – step-by-step online hosting guide
+- `render.yaml` – Render blueprint for one-click deploy of frontend + backend
 
 ## Quick start
 
@@ -32,6 +34,21 @@ cp .env.example .env
 
 ### Redis (optional)
 Set `REDIS_URL` to broadcast operations between multiple backend instances.
+
+## Online hosting
+
+You can deploy both apps online using Render.
+
+1. Fork/push this repository to GitHub.
+2. In Render, create a new **Blueprint** service from your repository.
+3. Render will detect `render.yaml` and provision:
+   - `collaborative-workspace-backend` (Node web service)
+   - `collaborative-workspace-frontend` (static site)
+4. Update environment variables after the first deploy:
+   - Backend `FRONTEND_ORIGIN` => your frontend URL
+   - Frontend `VITE_BACKEND_URL` => your backend URL
+
+Detailed instructions are in `docs/deployment.md`.
 
 ## How it works (MVP)
 
