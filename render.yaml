@@ -39,5 +39,5 @@ services:
     name: workspace-redis
     region: singapore # or oregon, frankfurt, etc.
     plan: free
-    maxMemoryPolicy: allkeys-lru
+    maxmemoryPolicy: allkeys-lru
     ipAllowList: []
