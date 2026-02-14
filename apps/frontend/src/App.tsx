@@ -30,6 +30,7 @@ export default function App() {
     setSnapshot,
   } = useWorkspaceStore();
   const [theme, setTheme] = useState<Theme>(() => resolveInitialTheme());
+  const [editorValue, setEditorValue] = useState(snapshot.content);
 
   useEffect(() => {
     socket.on("connect", () => setConnected(true));
@@ -50,7 +51,17 @@ export default function App() {
     window.localStorage.setItem("workspace-theme", theme);
   }, [theme]);
 
+  useEffect(() => {
+    setEditorValue(snapshot.content);
+  }, [snapshot.content]);
+
   const onChangeContent = (nextContent: string) => {
+    setEditorValue(nextContent);
+
+    if (!isConnected) {
+      return;
+    }
+
     const op: TextOperation = {
       docId: currentDocId,
       position: 0,
@@ -106,7 +117,7 @@ export default function App() {
         </div>
 
         <textarea
-          value={snapshot.content}
+          value={editorValue}
           onChange={(event) => onChangeContent(event.target.value)}
           placeholder="Start typing with multiple browser tabs open..."
           className="h-[440px] w-full resize-none rounded-xl border border-stone-300 bg-white p-4 font-mono text-sm leading-relaxed text-stone-800 shadow-inner outline-none transition focus:border-stone-500 focus:ring-2 focus:ring-stone-300 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500 dark:focus:ring-stone-700"
