@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 
 import { useWorkspaceStore } from "./store";
@@ -31,6 +31,7 @@ export default function App() {
   } = useWorkspaceStore();
   const [theme, setTheme] = useState<Theme>(() => resolveInitialTheme());
   const [editorValue, setEditorValue] = useState(snapshot.content);
+  const editorValueRef = useRef(snapshot.content);
 
   useEffect(() => {
     socket.on("connect", () => setConnected(true));
@@ -52,10 +53,16 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
+    editorValueRef.current = editorValue;
+  }, [editorValue]);
+
+  useEffect(() => {
     setEditorValue(snapshot.content);
   }, [snapshot.content]);
 
   const onChangeContent = (nextContent: string) => {
+    const previousContent = editorValueRef.current;
+
     setEditorValue(nextContent);
 
     if (!isConnected) {
@@ -65,7 +72,7 @@ export default function App() {
     const op: TextOperation = {
       docId: currentDocId,
       position: 0,
-      deleteCount: snapshot.content.length,
+      deleteCount: previousContent.length,
       insertText: nextContent,
       clientId,
       baseVersion: snapshot.version,
