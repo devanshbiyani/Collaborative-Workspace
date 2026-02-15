@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 
 import { useWorkspaceStore } from "./store";
-import { TextOperation } from "./types";
+import { DocumentSnapshot, TextOperation } from "./types";
 
 type Theme = "light" | "dark";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:4000";
 const socket = io(BACKEND_URL, { autoConnect: true });
+const SIGNIFICANT_VERSION_GAP = 2;
 
 const resolveInitialTheme = (): Theme => {
   if (typeof window === "undefined") return "light";
@@ -32,18 +33,52 @@ export default function App() {
   const [theme, setTheme] = useState<Theme>(() => resolveInitialTheme());
   const [editorValue, setEditorValue] = useState(snapshot.content);
   const editorValueRef = useRef(snapshot.content);
+  const snapshotRef = useRef(snapshot);
+  const pendingLocalContentRef = useRef<string | null>(null);
 
   useEffect(() => {
+    const handleDocumentUpdated = (incomingSnapshot: DocumentSnapshot) => {
+      const previousSnapshot = snapshotRef.current;
+
+      snapshotRef.current = incomingSnapshot;
+      setSnapshot(incomingSnapshot);
+
+      const pendingLocalContent = pendingLocalContentRef.current;
+      if (!pendingLocalContent) {
+        if (incomingSnapshot.content !== editorValueRef.current) {
+          setEditorValue(incomingSnapshot.content);
+        }
+        return;
+      }
+
+      if (incomingSnapshot.content === pendingLocalContent) {
+        pendingLocalContentRef.current = null;
+        if (incomingSnapshot.content !== editorValueRef.current) {
+          setEditorValue(incomingSnapshot.content);
+        }
+        return;
+      }
+
+      const versionGap = incomingSnapshot.version - previousSnapshot.version;
+      if (
+        versionGap >= SIGNIFICANT_VERSION_GAP &&
+        incomingSnapshot.content !== editorValueRef.current
+      ) {
+        pendingLocalContentRef.current = null;
+        setEditorValue(incomingSnapshot.content);
+      }
+    };
+
     socket.on("connect", () => setConnected(true));
     socket.on("disconnect", () => setConnected(false));
-    socket.on("document:updated", setSnapshot);
+    socket.on("document:updated", handleDocumentUpdated);
 
     socket.emit("document:join", currentDocId);
 
     return () => {
       socket.off("connect");
       socket.off("disconnect");
-      socket.off("document:updated", setSnapshot);
+      socket.off("document:updated", handleDocumentUpdated);
     };
   }, [currentDocId, setConnected, setSnapshot]);
 
@@ -57,25 +92,26 @@ export default function App() {
   }, [editorValue]);
 
   useEffect(() => {
-    setEditorValue(snapshot.content);
-  }, [snapshot.content]);
+    snapshotRef.current = snapshot;
+  }, [snapshot]);
 
   const onChangeContent = (nextContent: string) => {
-    const previousContent = editorValueRef.current;
-
     setEditorValue(nextContent);
+    pendingLocalContentRef.current = nextContent;
 
     if (!isConnected) {
       return;
     }
 
+    const latestSnapshot = snapshotRef.current;
+
     const op: TextOperation = {
       docId: currentDocId,
       position: 0,
-      deleteCount: previousContent.length,
+      deleteCount: latestSnapshot.content.length,
       insertText: nextContent,
       clientId,
-      baseVersion: snapshot.version,
+      baseVersion: latestSnapshot.version,
     };
 
     socket.emit("document:op", op);
