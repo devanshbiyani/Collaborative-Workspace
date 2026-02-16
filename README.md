@@ -1,20 +1,22 @@
 # Collaborative Workspace (Notion + Google Docs style)
 
-A starter monorepo for building a real-time collaborative workspace using:
+A monorepo for a real-time collaborative editor with dynamic document rooms, debounced client operations, and MongoDB-backed persistence.
 
-- **Frontend**: React + TypeScript + Zustand + TailwindCSS
-- **Backend**: Node.js + Express + Socket.io
-- **Advanced path**: Redis pub/sub + CRDT/OT engine
+## Tech Stack
 
-## Project structure
+- **Frontend**: React + TypeScript + Zustand + TailwindCSS + React Router
+- **Backend**: Node.js + Express + Socket.io + Zod + Mongoose
+- **Scaling path**: Redis pub/sub + CRDT/OT engine
+
+## Project Structure
 
 - `apps/frontend` – React editor client
 - `apps/backend` – Express + Socket.io collaboration server
 - `docs/architecture.md` – scaling + CRDT/OT roadmap
-- `docs/deployment.md` – step-by-step online hosting guide
-- `render.yaml` – Render blueprint for one-click deploy of frontend + backend
+- `docs/deployment.md` – online hosting guide
+- `render.yaml` – Render blueprint for frontend + backend deployment
 
-## Quick start
+## Quick Start
 
 ```bash
 npm install
@@ -24,41 +26,91 @@ npm run dev
 - Frontend: `http://localhost:5173`
 - Backend: `http://localhost:4000`
 
-## Environment
+## Environment Variables
 
-Copy `.env.example` into `.env` and edit values if needed.
+Create a `.env` file in the repository root.
 
 ```bash
 cp .env.example .env
 ```
 
-### Redis (optional)
-Set `REDIS_URL` to broadcast operations between multiple backend instances.
+### Required
 
-## Online hosting
+- `MONGO_URI` – MongoDB connection string (Atlas/local)
 
-You can deploy both apps online using Render.
+### Optional
 
-1. Fork/push this repository to GitHub.
-2. In Render, create a new **Blueprint** service from your repository.
-3. Render will detect `render.yaml` and provision:
-   - `collaborative-workspace-backend` (Node web service)
-   - `collaborative-workspace-frontend` (static site)
-4. Update environment variables after the first deploy:
-   - Backend `FRONTEND_ORIGIN` => your frontend URL
-   - Frontend `VITE_BACKEND_URL` => your backend URL
+- `REDIS_URL` – enables pub/sub broadcast across multiple backend instances
+- `FRONTEND_ORIGIN` – allowed CORS origins for backend (comma-separated)
+- `VITE_BACKEND_URL` – backend URL used by frontend
 
-Detailed instructions are in `docs/deployment.md`.
+## Routes and Document Rooms
 
-## How it works (MVP)
+The frontend now supports URL-based document routing:
 
-1. Client joins a document room through Socket.io (`document:join`).
-2. Client sends text operations (`document:op`).
-3. Backend validates operation with `zod`, applies it, and broadcasts `document:updated`.
-4. If Redis is enabled, operations are published/subscribed through `workspace:ops`.
+- `/` → auto-generates a UUID and redirects to `/documents/:id`
+- `/documents/:id` → opens a dedicated collaborative room for that document ID
 
-## Next steps for production
+This allows direct sharing/bookmarking of collaborative documents.
 
-- Persist documents + operation logs in PostgreSQL or MongoDB.
-- Replace naive text replacement with proper CRDT or OT transformations.
-- Add authentication, permissions, and presence/cursor sync.
+## How Collaboration Works
+
+1. User opens `/documents/:id`.
+2. Client emits `document:join` with that document ID.
+3. User edits update local UI immediately.
+4. Socket operation emits are **debounced by 3 seconds** to reduce network chatter.
+5. Backend validates operation payloads using Zod.
+6. Backend applies updates and persists document state in MongoDB.
+7. Updated snapshots are broadcast via `document:updated`.
+8. If Redis is enabled, operations fan out through `workspace:ops`.
+
+## Recent Upgrades (Implemented)
+
+### 1) Debounced Socket Operations (Frontend)
+
+- Local editor state updates immediately on input.
+- `socket.emit("document:op", ...)` is debounced by 3000ms.
+- Timeout ID is stored in a `useRef` to avoid re-renders.
+- Effect cleanup clears pending timeout for React 18 Strict Mode safety.
+
+### 2) Persistent Storage with MongoDB (Backend)
+
+- Added `mongoose` integration.
+- Added typed schema/model for documents:
+  - `_id: String`
+  - `content: String`
+  - `version: Number`
+- Refactored collaboration engine APIs to async:
+  - `getDocument(...)`
+  - `applyOperation(...)`
+- Backend server now connects with `await mongoose.connect(process.env.MONGO_URI)` during startup.
+
+### 3) Dynamic Room Routing (Frontend)
+
+- Added React Router v6 setup in `main.tsx` with `BrowserRouter` + `Routes`.
+- Added root redirect route that generates a UUID (`uuid` package).
+- Added `/documents/:id` route and `useParams` integration in app logic.
+
+## Build and Validation
+
+```bash
+npm run build
+```
+
+Build runs:
+
+- backend TypeScript compile
+- frontend TypeScript compile + Vite production build
+
+## Deployment Notes
+
+You can deploy both apps online using Render:
+
+1. Push repository to GitHub.
+2. In Render, create a new **Blueprint** from the repo.
+3. Render provisions backend + frontend from `render.yaml`.
+4. Set environment variables:
+   - Backend: `MONGO_URI`, `FRONTEND_ORIGIN`, optional `REDIS_URL`
+   - Frontend: `VITE_BACKEND_URL`
+
+For complete instructions, see `docs/deployment.md`.
