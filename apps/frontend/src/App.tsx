@@ -50,6 +50,10 @@ export default function App() {
   }, [routeDocId, setDocId]);
 
   useEffect(() => {
+    const joinCurrentDocument = () => {
+      socket.emit("document:join", currentDocId);
+    };
+
     const handleDocumentUpdated = (incomingSnapshot: DocumentSnapshot) => {
       const previousSnapshot = snapshotRef.current;
 
@@ -82,15 +86,30 @@ export default function App() {
       }
     };
 
-    socket.on("connect", () => setConnected(true));
-    socket.on("disconnect", () => setConnected(false));
+    const handleConnect = () => {
+      setConnected(true);
+      joinCurrentDocument();
+    };
+
+    const handleDisconnect = () => {
+      setConnected(false);
+    };
+
+    socket.on("connect", handleConnect);
+    socket.on("disconnect", handleDisconnect);
     socket.on("document:updated", handleDocumentUpdated);
 
-    socket.emit("document:join", currentDocId);
+    setConnected(socket.connected);
+    if (socket.connected) {
+      joinCurrentDocument();
+    } else {
+      socket.connect();
+    }
 
     return () => {
-      socket.off("connect");
-      socket.off("disconnect");
+      socket.emit("document:leave", currentDocId);
+      socket.off("connect", handleConnect);
+      socket.off("disconnect", handleDisconnect);
       socket.off("document:updated", handleDocumentUpdated);
       if (emitTimeoutRef.current) {
         clearTimeout(emitTimeoutRef.current);
