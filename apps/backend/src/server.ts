@@ -106,6 +106,10 @@ io.on("connection", (socket) => {
     socket.emit("document:updated", await getDocument(docId));
   });
 
+  socket.on("document:leave", (docId: string) => {
+    socket.leave(docId);
+  });
+
   socket.on("document:op", async (candidate: unknown) => {
     const parsed = opSchema.safeParse(candidate);
 

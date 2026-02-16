@@ -1,6 +1,6 @@
 # Collaborative Workspace (Notion + Google Docs style)
 
-A monorepo for a real-time collaborative editor with dynamic document rooms, debounced client operations, and MongoDB-backed persistence.
+A monorepo for a real-time collaborative editor with dynamic document rooms, URL-shareable workspaces, debounced client operations, and MongoDB-backed persistence.
 
 ## Tech Stack
 
@@ -53,12 +53,14 @@ The frontend now supports URL-based document routing:
 
 This allows direct sharing/bookmarking of collaborative documents.
 
+For static deployments (e.g. Render), SPA rewrites are configured so refreshing `/documents/:id` always serves the frontend app instead of returning a `Not Found` page.
+
 ## How Collaboration Works
 
 1. User opens `/documents/:id`.
 2. Client emits `document:join` with that document ID.
 3. User edits update local UI immediately.
-4. Socket operation emits are **debounced by 3 seconds** to reduce network chatter.
+4. Socket operation emits are **debounced by 500ms** to reduce network chatter while keeping the editor responsive.
 5. Backend validates operation payloads using Zod.
 6. Backend applies updates and persists document state in MongoDB.
 7. Updated snapshots are broadcast via `document:updated`.
@@ -69,11 +71,17 @@ This allows direct sharing/bookmarking of collaborative documents.
 ### 1) Debounced Socket Operations (Frontend)
 
 - Local editor state updates immediately on input.
-- `socket.emit("document:op", ...)` is debounced by 3000ms.
+- `socket.emit("document:op", ...)` is debounced by 500ms.
 - Timeout ID is stored in a `useRef` to avoid re-renders.
 - Effect cleanup clears pending timeout for React 18 Strict Mode safety.
 
-### 2) Persistent Storage with MongoDB (Backend)
+### 2) Stable Connection + Auto-Rejoin (Frontend)
+
+- Room status now reflects the true Socket.IO state on load (`Connected` when already connected).
+- On initial connect/reconnect, the client automatically rejoins the active document room.
+- Switching rooms leaves the previous Socket.IO room and joins the new one cleanly.
+
+### 3) Persistent Storage with MongoDB (Backend)
 
 - Added `mongoose` integration.
 - Added typed schema/model for documents:
@@ -85,7 +93,7 @@ This allows direct sharing/bookmarking of collaborative documents.
   - `applyOperation(...)`
 - Backend server now connects with `await mongoose.connect(process.env.MONGO_URI)` during startup.
 
-### 3) Dynamic Room Routing (Frontend)
+### 4) Dynamic Room Routing (Frontend)
 
 - Added React Router v6 setup in `main.tsx` with `BrowserRouter` + `Routes`.
 - Added root redirect route that generates a UUID (`uuid` package).
