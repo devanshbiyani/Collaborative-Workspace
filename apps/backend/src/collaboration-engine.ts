@@ -5,7 +5,7 @@ import { DocumentSnapshot, TextOperation } from "./types.js";
 const documentSchema = new Schema(
   {
     _id: { type: String, required: true },
-    content: { type: String, required: true, default: "" },
+    content: { type: String, default: "" }, // <--- REMOVED 'required: true'
     version: { type: Number, required: true, default: 0 },
   },
   {
