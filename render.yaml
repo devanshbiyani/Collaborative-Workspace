@@ -4,11 +4,16 @@ services:
     runtime: node
     rootDir: .
     buildCommand: npm install && npm run build:backend
-    startCommand: npm --workspace @workspace/backend run start
+    # Changed to execute within the specific app directory to find dist/server.js
+    startCommand: cd apps/backend && node dist/server.js
     plan: free
     envVars:
+      - key: MONGO_URI
+        value: mongodb+srv://devanshbiyani_db_user:<db_password>@cluster0.1h3fnhr.mongodb.net/?appName=Cluster0
       - key: FRONTEND_ORIGIN
         value: https://collaborative-workspace-frontend.onrender.com
+      - key: PORT
+        value: 10000
       - key: REDIS_URL
         sync: false
 
@@ -20,4 +25,4 @@ services:
     staticPublishPath: apps/frontend/dist
     envVars:
       - key: VITE_BACKEND_URL
-        value: https://collaborative-workspace-backend.onrender.com
+        value: https://collaborative-workspace-backend-a90y.onrender.com
