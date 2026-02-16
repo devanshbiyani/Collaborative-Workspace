@@ -2,8 +2,9 @@ import "dotenv/config";
 
 import cors from "cors";
 import express from "express";
-import { createServer } from "node:http";
 import { Redis } from "ioredis";
+import mongoose from "mongoose";
+import { createServer } from "node:http";
 import { Server } from "socket.io";
 import { z } from "zod";
 
@@ -13,6 +14,11 @@ import { TextOperation } from "./types.js";
 const PORT = Number(process.env.PORT ?? 4000);
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN ?? "http://localhost:5173";
 const REDIS_URL = process.env.REDIS_URL;
+const MONGO_URI = process.env.MONGO_URI;
+
+if (!MONGO_URI) {
+  throw new Error("MONGO_URI is required");
+}
 
 const allowedOrigins = FRONTEND_ORIGIN.split(",")
   .map((origin) => origin.trim())
@@ -43,8 +49,8 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "collaboration-backend" });
 });
 
-app.get("/documents/:id", (req, res) => {
-  const doc = getDocument(req.params.id);
+app.get("/documents/:id", async (req, res) => {
+  const doc = await getDocument(req.params.id);
   res.json(doc);
 });
 
@@ -87,17 +93,17 @@ if (REDIS_URL) {
     }
   });
 
-  redisSubscriber.on("message", (_channel: string, payload: string) => {
+  redisSubscriber.on("message", async (_channel: string, payload: string) => {
     const parsed = JSON.parse(payload) as TextOperation;
-    const { snapshot } = applyOperation(parsed);
+    const { snapshot } = await applyOperation(parsed);
     io.to(parsed.docId).emit("document:updated", snapshot);
   });
 }
 
 io.on("connection", (socket) => {
-  socket.on("document:join", (docId: string) => {
+  socket.on("document:join", async (docId: string) => {
     socket.join(docId);
-    socket.emit("document:updated", getDocument(docId));
+    socket.emit("document:updated", await getDocument(docId));
   });
 
   socket.on("document:op", async (candidate: unknown) => {
@@ -118,7 +124,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const { snapshot, conflict } = applyOperation(op);
+    const { snapshot, conflict } = await applyOperation(op);
     io.to(op.docId).emit("document:updated", snapshot);
 
     if (conflict) {
@@ -130,6 +136,16 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`Backend listening on http://localhost:${PORT}`);
+const startServer = async () => {
+  await mongoose.connect(MONGO_URI);
+  console.log("Connected to MongoDB");
+
+  server.listen(PORT, () => {
+    console.log(`Backend listening on http://localhost:${PORT}`);
+  });
+};
+
+void startServer().catch((error: unknown) => {
+  console.error("Failed to start server", error);
+  process.exit(1);
 });

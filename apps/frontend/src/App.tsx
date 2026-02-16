@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Navigate, useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 
 import { useWorkspaceStore } from "./store";
@@ -9,6 +10,7 @@ type Theme = "light" | "dark";
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:4000";
 const socket = io(BACKEND_URL, { autoConnect: true });
 const SIGNIFICANT_VERSION_GAP = 2;
+const DEBOUNCE_MS = 3000;
 
 const resolveInitialTheme = (): Theme => {
   if (typeof window === "undefined") return "light";
@@ -22,12 +24,15 @@ const resolveInitialTheme = (): Theme => {
 };
 
 export default function App() {
+  const params = useParams<{ id: string }>();
+  const routeDocId = params.id;
   const {
     clientId,
     currentDocId,
     snapshot,
     isConnected,
     setConnected,
+    setDocId,
     setSnapshot,
   } = useWorkspaceStore();
   const [theme, setTheme] = useState<Theme>(() => resolveInitialTheme());
@@ -35,6 +40,13 @@ export default function App() {
   const editorValueRef = useRef(snapshot.content);
   const snapshotRef = useRef(snapshot);
   const pendingLocalContentRef = useRef<string | null>(null);
+  const emitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (routeDocId) {
+      setDocId(routeDocId);
+    }
+  }, [routeDocId, setDocId]);
 
   useEffect(() => {
     const handleDocumentUpdated = (incomingSnapshot: DocumentSnapshot) => {
@@ -79,6 +91,10 @@ export default function App() {
       socket.off("connect");
       socket.off("disconnect");
       socket.off("document:updated", handleDocumentUpdated);
+      if (emitTimeoutRef.current) {
+        clearTimeout(emitTimeoutRef.current);
+        emitTimeoutRef.current = null;
+      }
     };
   }, [currentDocId, setConnected, setSnapshot]);
 
@@ -103,23 +119,34 @@ export default function App() {
       return;
     }
 
-    const latestSnapshot = snapshotRef.current;
+    if (emitTimeoutRef.current) {
+      clearTimeout(emitTimeoutRef.current);
+    }
 
-    const op: TextOperation = {
-      docId: currentDocId,
-      position: 0,
-      deleteCount: latestSnapshot.content.length,
-      insertText: nextContent,
-      clientId,
-      baseVersion: latestSnapshot.version,
-    };
+    emitTimeoutRef.current = setTimeout(() => {
+      const latestSnapshot = snapshotRef.current;
 
-    socket.emit("document:op", op);
+      const op: TextOperation = {
+        docId: currentDocId,
+        position: 0,
+        deleteCount: latestSnapshot.content.length,
+        insertText: nextContent,
+        clientId,
+        baseVersion: latestSnapshot.version,
+      };
+
+      socket.emit("document:op", op);
+      emitTimeoutRef.current = null;
+    }, DEBOUNCE_MS);
   };
 
   const toggleTheme = () => {
     setTheme((current) => (current === "dark" ? "light" : "dark"));
   };
+
+  if (!routeDocId) {
+    return <Navigate replace to="/" />;
+  }
 
   return (
     <main className="min-h-screen bg-stone-100 p-6 text-stone-900 transition-colors dark:bg-stone-950 dark:text-stone-100 sm:p-10">
