@@ -1,4 +1,4 @@
-import { InferSchemaType, Model, Schema, model, models } from "mongoose";
+import mongoose from "mongoose"; const { Schema, model, models } = mongoose; import type { InferSchemaType, Model } from "mongoose";
 
 import { DocumentSnapshot, TextOperation } from "./types.js";
 
