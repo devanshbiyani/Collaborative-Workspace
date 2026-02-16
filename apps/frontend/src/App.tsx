@@ -1,3 +1,4 @@
+import Editor from "@monaco-editor/react";
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useParams } from "react-router-dom";
 import { io } from "socket.io-client";
@@ -10,7 +11,7 @@ type Theme = "light" | "dark";
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:4000";
 const socket = io(BACKEND_URL, { autoConnect: true });
 const SIGNIFICANT_VERSION_GAP = 2;
-const DEBOUNCE_MS = 3000;
+const DEBOUNCE_MS = 500;
 
 const resolveInitialTheme = (): Theme => {
   if (typeof window === "undefined") return "light";
@@ -111,9 +112,10 @@ export default function App() {
     snapshotRef.current = snapshot;
   }, [snapshot]);
 
-  const onChangeContent = (nextContent: string) => {
-    setEditorValue(nextContent);
-    pendingLocalContentRef.current = nextContent;
+  const onChangeContent = (nextContent?: string) => {
+    const normalizedContent = nextContent ?? "";
+    setEditorValue(normalizedContent);
+    pendingLocalContentRef.current = normalizedContent;
 
     if (!isConnected) {
       return;
@@ -130,7 +132,7 @@ export default function App() {
         docId: currentDocId,
         position: 0,
         deleteCount: latestSnapshot.content.length,
-        insertText: nextContent,
+        insertText: normalizedContent,
         clientId,
         baseVersion: latestSnapshot.version,
       };
@@ -186,11 +188,21 @@ export default function App() {
           <p>Version: {snapshot.version}</p>
         </div>
 
-        <textarea
+        <Editor
           value={editorValue}
-          onChange={(event) => onChangeContent(event.target.value)}
-          placeholder="Start typing with multiple browser tabs open..."
-          className="h-[440px] w-full resize-none rounded-xl border border-stone-300 bg-white p-4 font-mono text-sm leading-relaxed text-stone-800 shadow-inner outline-none transition focus:border-stone-500 focus:ring-2 focus:ring-stone-300 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500 dark:focus:ring-stone-700"
+          onChange={onChangeContent}
+          language="javascript"
+          theme={theme === "dark" ? "vs-dark" : "light"}
+          loading="Loading editor..."
+          options={{
+            minimap: { enabled: false },
+            fontSize: 14,
+            wordWrap: "on",
+            lineNumbersMinChars: 3,
+            scrollBeyondLastLine: false,
+            smoothScrolling: true,
+          }}
+          height="440px"
         />
       </section>
     </main>
